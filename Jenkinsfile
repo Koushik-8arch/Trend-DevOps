@@ -3,12 +3,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
-            steps {
-                git 'https://github.com/Koushik-8arch/Trend-DevOps.git'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t kkdochub/trend-app:latest .'
