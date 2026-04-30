@@ -1,11 +1,17 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "trend-app"
+        DOCKER_USER = "kkdochub"
+    }
+
     stages {
 
         stage('Checkout Code') {
             steps {
-                git 'https://github.com/Koushik-8arch/Trend-DevOps.git'
+                git branch: 'main',
+                url: 'https://github.com/Koushik-8arch/Trend-DevOps.git'
             }
         }
 
@@ -23,13 +29,27 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t trend-app .'
+                sh "docker build -t $DOCKER_USER/$IMAGE_NAME:latest ."
+            }
+        }
+
+        stage('Login to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh 'echo $PASS | docker login -u $USER --password-stdin'
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh "docker push $DOCKER_USER/$IMAGE_NAME:latest"
             }
         }
 
         stage('Run Container') {
             steps {
-                sh 'docker run -d -p 3000:3000 trend-app'
+                sh "docker run -d -p 3000:3000 $DOCKER_USER/$IMAGE_NAME:latest"
             }
         }
     }
