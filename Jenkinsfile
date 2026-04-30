@@ -1,35 +1,17 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "trend-app"
-        DOCKER_USER = "kkdochub"
-    }
-
     stages {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/Koushik-8arch/Trend-DevOps.git'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Build React App') {
-            steps {
-                sh 'npm run build'
+                git 'https://github.com/Koushik-8arch/Trend-DevOps.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $DOCKER_USER/$IMAGE_NAME:latest ."
+                sh 'docker build -t kkdochub/trend-app:latest .'
             }
         }
 
@@ -43,13 +25,13 @@ pipeline {
 
         stage('Push Image') {
             steps {
-                sh "docker push $DOCKER_USER/$IMAGE_NAME:latest"
+                sh 'docker push kkdochub/trend-app:latest'
             }
         }
 
         stage('Run Container') {
             steps {
-                sh "docker run -d -p 3000:3000 $DOCKER_USER/$IMAGE_NAME:latest"
+                sh 'docker run -d -p 80:80 kkdochub/trend-app:latest'
             }
         }
     }
