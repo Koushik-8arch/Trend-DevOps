@@ -11,7 +11,11 @@ pipeline {
 
         stage('Login to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'c4776af1-5bda-4bfe-8b4a-38b2f94d90ee',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
                     sh 'echo $PASS | docker login -u $USER --password-stdin'
                 }
             }
@@ -23,9 +27,24 @@ pipeline {
             }
         }
 
-        stage('Run Container') {
+        stage('Cleanup Old Containers') {
             steps {
-                sh 'docker run -d -p 80:80 kkdochub/trend-app:latest'
+                sh 'docker rm -f $(docker ps -aq) || true'
+            }
+        }
+
+        stage('Run Container') {
+    steps {
+        sh '''
+        docker rm -f trend-app || true
+        docker run -d --name trend-app -p 80:80 kkdochub/trend-app:latest
+        '''
+            }
+        }
+
+        stage('Cleanup System') {
+            steps {
+                sh 'docker system prune -af || true'
             }
         }
     }
