@@ -1,51 +1,74 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_IMAGE = "kkdochub/trend:latest"
+        AWS_REGION = "ap-south-1"
+        CLUSTER_NAME = "trend-cluster"
+    }
+
     stages {
 
-        stage('Build Docker Image') {
+        stage('Checkout Code') {
             steps {
-                sh 'docker build -t kkdochub/trend-app:latest .'
+                git 'https://github.com/Koushik-8arch/Trend-DevOps.git'
             }
         }
 
-        stage('Login to DockerHub') {
+        stage('Build Docker Image') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'c4776af1-5bda-4bfe-8b4a-38b2f94d90ee',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
-                )]) {
-                    sh 'echo $PASS | docker login -u $USER --password-stdin'
+                sh 'docker build -t $DOCKER_IMAGE .'
+            }
+        }
+
+        stage('DockerHub Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh '''
+                        echo $PASS | docker login -u $USER --password-stdin
+                    '''
                 }
             }
         }
 
-        stage('Push Image') {
+        stage('Push Docker Image') {
             steps {
-                sh 'docker push kkdochub/trend-app:latest'
+                sh 'docker push $DOCKER_IMAGE'
             }
         }
 
-        stage('Cleanup Old Containers') {
+        stage('Configure EKS Access') {
             steps {
-                sh 'docker rm -f $(docker ps -aq) || true'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-cred']]) {
+                    sh '''
+                        aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
+                    '''
+                }
             }
         }
 
-        stage('Run Container') {
-    steps {
-        sh '''
-        docker rm -f trend-app || true
-        docker run -d --name trend-app -p 80:80 kkdochub/trend-app:latest
-        '''
+        stage('Deploy to EKS') {
+            steps {
+                sh '''
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
+
+                    echo "===== POD STATUS ====="
+                    kubectl get pods
+
+                    echo "===== SERVICE STATUS ====="
+                    kubectl get svc
+                '''
             }
         }
+    }
 
-        stage('Cleanup System') {
-            steps {
-                sh 'docker system prune -af || true'
-            }
+    post {
+        success {
+            echo "CI/CD Pipeline Completed Successfully 🚀"
+        }
+        failure {
+            echo "Pipeline Failed ❌ Check logs"
         }
     }
 }
