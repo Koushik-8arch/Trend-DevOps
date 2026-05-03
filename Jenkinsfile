@@ -9,6 +9,12 @@ pipeline {
 
     stages {
 
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Koushik-8arch/Trend-DevOps.git'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh '''
@@ -20,9 +26,13 @@ pipeline {
 
         stage('DockerHub Login') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-cred',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
-                        echo $PASS | docker login -u $USER --password-stdin
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                     '''
                 }
             }
@@ -37,12 +47,20 @@ pipeline {
             }
         }
 
-        stage('Configure EKS Access') {
+        stage('Configure AWS & EKS') {
             steps {
-                sh '''
-                    echo "Updating kubeconfig for EKS..."
-                    aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
-                '''
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-cred'
+                ]]) {
+                    sh '''
+                        echo "Checking AWS identity..."
+                        aws sts get-caller-identity
+
+                        echo "Updating kubeconfig for EKS..."
+                        aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
+                    '''
+                }
             }
         }
 
