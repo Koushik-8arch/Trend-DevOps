@@ -47,38 +47,38 @@ pipeline {
             }
         }
 
-        stage('Configure AWS & EKS') {
+        stage('Deploy to EKS') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-cred'
                 ]]) {
                     sh '''
-                        echo "Checking AWS identity..."
+                        echo "Configuring AWS..."
                         aws sts get-caller-identity
 
-                        echo "Updating kubeconfig for EKS..."
+                        echo "Updating kubeconfig..."
                         aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
+
+                        export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                        echo "Checking cluster access..."
+                        kubectl get nodes
+
+                        echo "Deploying to Kubernetes..."
+                        kubectl apply -f deployment.yaml --validate=false
+                        kubectl apply -f service.yaml --validate=false
+
+                        echo "===== POD STATUS ====="
+                        kubectl get pods -o wide
+
+                        echo "===== SERVICE STATUS ====="
+                        kubectl get svc
                     '''
                 }
             }
         }
-
-stage('Configure & Deploy') {
-    steps {
-        withCredentials([[
-            $class: 'AmazonWebServicesCredentialsBinding',
-            credentialsId: 'aws-cred'
-        ]]) {
-            sh '''
-                aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-                kubectl get nodes
-                kubectl apply -f deployment.yaml --validate=false
-                kubectl apply -f service.yaml --validate=false
-            '''
-        }
     }
-}
 
     post {
         success {
