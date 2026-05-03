@@ -11,7 +11,10 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh '''
+                    echo "Building Docker Image..."
+                    docker build -t $DOCKER_IMAGE .
+                '''
             }
         }
 
@@ -27,28 +30,32 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                sh 'docker push $DOCKER_IMAGE'
+                sh '''
+                    echo "Pushing Docker Image..."
+                    docker push $DOCKER_IMAGE
+                '''
             }
         }
 
         stage('Configure EKS Access') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-cred']]) {
-                    sh '''
-                        aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
-                    '''
-                }
+                sh '''
+                    echo "Updating kubeconfig for EKS..."
+                    aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
+                '''
             }
         }
 
         stage('Deploy to EKS') {
             steps {
                 sh '''
+                    echo "Deploying to Kubernetes..."
+
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
 
                     echo "===== POD STATUS ====="
-                    kubectl get pods
+                    kubectl get pods -o wide
 
                     echo "===== SERVICE STATUS ====="
                     kubectl get svc
@@ -59,10 +66,10 @@ pipeline {
 
     post {
         success {
-            echo "CI/CD Pipeline Completed Successfully 🚀"
+            echo "✅ CI/CD Pipeline Completed Successfully 🚀"
         }
         failure {
-            echo "Pipeline Failed ❌ Check logs"
+            echo "❌ Pipeline Failed - Check Logs"
         }
     }
 }
