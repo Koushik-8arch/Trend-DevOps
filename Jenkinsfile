@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "kkdochub/trend:latest"
+        DOCKER_IMAGE = "kkdochub/trend:${BUILD_NUMBER}"
         AWS_REGION = "ap-south-1"
         CLUSTER_NAME = "trend-cluster"
     }
@@ -20,11 +20,12 @@ pipeline {
                 sh '''
                     echo "Building Docker Image..."
                     docker build -t $DOCKER_IMAGE .
+                    docker tag $DOCKER_IMAGE kkdochub/trend:latest
                 '''
             }
         }
 
-        stage('DockerHub Login') {
+        stage('DockerHub Login & Push') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-cred',
@@ -33,23 +34,16 @@ pipeline {
                 )]) {
                     sh '''
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKER_IMAGE
+                        docker push kkdochub/trend:latest
                     '''
                 }
             }
         }
 
-        stage('Push Docker Image') {
-            steps {
-                sh '''
-                    echo "Pushing Docker Image..."
-                    docker push $DOCKER_IMAGE
-                '''
-            }
-        }
-
         stage('Deploy to EKS') {
             steps {
-                withCredentials([[
+                withCredentials([[ 
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-cred'
                 ]]) {
@@ -57,22 +51,21 @@ pipeline {
                         echo "Configuring AWS..."
                         aws sts get-caller-identity
 
-                        echo "Updating kubeconfig..."
                         aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
 
                         export KUBECONFIG=/var/lib/jenkins/.kube/config
 
-                        echo "Checking cluster access..."
-                        kubectl get nodes
-
                         echo "Deploying to Kubernetes..."
-                        kubectl apply -f deployment.yaml --validate=false
-                        kubectl apply -f service.yaml --validate=false
+                        kubectl apply -f deployment.yaml
+                        kubectl apply -f service.yaml
 
-                        echo "===== POD STATUS ====="
+                        echo "Waiting for rollout..."
+                        kubectl rollout status deployment/trend-app
+
+                        echo "Pods:"
                         kubectl get pods -o wide
 
-                        echo "===== SERVICE STATUS ====="
+                        echo "Service:"
                         kubectl get svc
                     '''
                 }
